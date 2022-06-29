@@ -13,7 +13,7 @@ var createTask = function(taskText, taskDate, taskList) {
   // append span and p element to parent li
   taskLi.append(taskSpan, taskP);
 
-
+  auditTask(taskLi);
   // append to ul list on the page
   $("#list-" + taskList).append(taskLi);
 };
@@ -61,7 +61,7 @@ $("#task-form-modal").on("shown.bs.modal", function() {
 });
 
 // save button in modal was clicked
-$("#task-form-modal .btn-primary").click(function() {
+$("#task-form-modal .btn-save").click(function() {
   // get form values
   var taskText = $("#modalTaskDescription").val();
   var taskDate = $("#modalDueDate").val();
@@ -82,6 +82,36 @@ $("#task-form-modal .btn-primary").click(function() {
   }
 });
 
+$(".list-group").on("click", "p", function () {
+  var text = $(this)
+    .text()
+    .trim();
+  var textInput = $("<textarea>")
+    .addClass("form-control")
+    .val(text);
+  $(this).replaceWith(textInput);
+  textInput.trigger("focus");
+  console.log(text);
+});
+
+$(".list-group").on("blur", "textarea", function () {
+  var text = $(this)
+    .val()
+    .trim();
+  
+  var status = $(this)
+    .closest(".list-group")
+    .attr("id")
+    .replace("list-", "");
+  
+  var index = $(this)
+    .closest(".list-group-item")
+    .index();
+  
+  tasks[status][index].text = text;
+  saveTasks();
+});
+
 // remove all tasks
 $("#remove-tasks").on("click", function() {
   for (var key in tasks) {
@@ -89,9 +119,169 @@ $("#remove-tasks").on("click", function() {
     $("#list-" + key).empty();
   }
   saveTasks();
+
+  var taskP = $("<p>")
+    .addClass("m-1")
+    .text(text);
+  
+  $(this).replaceWith(taskP);
 });
+
+$(".list-group").on("click", "span", function () {
+  console.log("we clicke the right place");
+  var date = $(this)
+    .text()
+    .trim();
+  
+  var dateInput = $("<input>")
+    .attr("type", "text")
+    .addClass("form-control")
+    .val(date);
+  
+  $(this).replaceWith(dateInput);
+
+  dateInput.datepicker({
+    minDate: 1,
+    onClose: function () {
+      $(this).trigger("change");
+    }
+  });
+
+  dateInput.trigger("focus");
+});
+
+$(".list-group").on("change", "input[type='text']", function () {
+  var date = $(this)
+    .val()
+    .trim();
+  
+  var status = $(this)
+    .closest(".list-group")
+    .attr("id")
+    .replace("list-", "");
+  
+  var index = $(this)
+    .closest(".list-group-item")
+    .index();
+  
+  tasks[status][index].date = date;
+  saveTasks();
+
+  var taskSpan = $("<span>")
+    .addClass("badge badge-primary badge-pill")
+    .text(date);
+  
+  $(this).replaceWith(taskSpan);
+
+  auditTask($(taskSpan).closest(".list-group-item"));
+});
+
+$(".card .list-group").sortable({
+  connectWith: $(".card .list-group"),
+  scroll: false,
+  tolerance: "pointer",
+  helper: "clone",
+  activate: function (event) {
+    $(this).addClass("dropover");
+    $(".bottom-trash").addClass("bottom-trash-drag");
+    console.log("activate", this);
+  },
+  deactivate: function (event) {
+    $(this).removeClass("dropover");
+    $(".bottom-trash").removeClass("bottom-trash-drag");
+    console.log("deactivate", this);
+  },
+  over: function (event) {
+    console.log("over", event.target);
+    $(event.target).addClass("dropover-active");
+  },
+  out: function (event) {
+    console.log("out", event.target);
+    $(event.target).removeClass("dropover-active");
+  },
+  update: function (event) {
+    var tempArr = [];
+
+    $(this).children().each(function () {
+      var text = $(this)
+        .find("p")
+        .text()
+        .trim();
+      
+      var date = $(this)
+        .find("span")
+        .text()
+        .trim();
+      
+      tempArr.push({
+        text: text,
+        date: date
+      });
+
+    });
+
+    var arrName = $(this)
+      .attr("id")
+      .replace("list-", "");
+    
+    tasks[arrName] = tempArr
+    saveTasks();
+    //console.log(tempArr);
+  }
+});
+
+$("#trash").droppable({
+  accept: ".card .list-group-item",
+  tolerance: "touch",
+  drop: function (event, ui) {
+    ui.draggable.remove();
+    $("bottom-trash").removeClass("bottom-trash-active");
+    console.log("drop");
+  },
+  over: function (event, ui) {
+    $("bottom-trash").addClass("bottom-trash-active");
+    console.log("over");
+  },
+  out: function (event, ui) {
+    $("bottom-trash").removeClass("bottom-trash-active");
+    console.log("out");
+  }
+});
+
+$("#modalDueDate").datepicker({
+  minDate: 1
+});
+
+var auditTask = function (taskEl) {
+  var date = $(taskEl)
+    .find("span")
+    .text()
+    .trim();
+  
+  console.log(date);
+
+  var time = moment(date, "L")
+    .set("hour", 17);
+  
+  $(taskEl).removeClass("list-group-item-warning list-group-item-danger");
+
+  if (moment().isAfter(time)) {
+    $(taskEl).addClass("list-group-item-danger");
+  }
+  else if (Math.abs(moment().diff(time, "days")) <= 2) {
+    $(taskEl).addClass("list-group-item-warning");
+  }
+  console.log(time);
+};
 
 // load tasks for the first time
 loadTasks();
+
+
+setInterval(function () {
+  $(".card .list-group-item").each(function (index, el) {
+    auditTask(el);
+  });
+}, (1000 * 60) * 30);
 
 
